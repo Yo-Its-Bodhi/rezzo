@@ -1,5 +1,6 @@
 import { BookingFlow } from "@/components/booking-flow";
 import { SiteHeader } from "@/components/site-header";
+import { RESERVATION_POLICIES, RESERVATION_POLICY_NOTE } from "@/lib/restaurant";
 
 export default function Home() {
   return (
@@ -19,6 +20,13 @@ export default function Home() {
             Two hours. Serious food. Questionable behaviour. Lock in your table before
             somebody else does.
           </p>
+          <details className="intro-policies">
+            <summary>KNOW BEFORE YOU BOOK</summary>
+            <ul>
+              {RESERVATION_POLICIES.map((policy) => <li key={policy}>{policy}</li>)}
+            </ul>
+            <p>{RESERVATION_POLICY_NOTE}</p>
+          </details>
           <div className="intro-sticker" aria-hidden>
             <span>2 HR</span>
             TABLES

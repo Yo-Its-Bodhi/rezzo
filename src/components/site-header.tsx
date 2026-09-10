@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogoutButton } from "@/components/logout-button";
 
 export function SiteHeader({ staff = false }: { staff?: boolean }) {
   return (
@@ -8,9 +9,12 @@ export function SiteHeader({ staff = false }: { staff?: boolean }) {
       </Link>
       <div className="header-actions">
         <span className="status-stamp">{staff ? "STAFF MODE" : "DUNDAS WEST"}</span>
-        <Link className="header-link" href={staff ? "/" : "/admin"}>
-          {staff ? "Guest view" : "Staff"}
-        </Link>
+        {staff ? (
+          <>
+            <Link className="header-link" href="/">Guest view</Link>
+            <LogoutButton />
+          </>
+        ) : null}
       </div>
     </header>
   );

@@ -1,22 +1,18 @@
+import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
-import { WaitlistForm } from "@/components/waitlist-form";
+import { WaitlistGuest } from "@/components/waitlist-guest";
+import { WAITLIST_ENABLED } from "@/lib/features";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Join the Waitlist | La Chingada",
+  description: "Join La Chingada's walk-in waitlist, follow your place, and accept your table.",
+  appleWebApp: { capable: true, title: "La Chingada", statusBarStyle: "black-translucent" },
+  referrer: "no-referrer",
+  robots: { index: false, follow: false },
+};
 
 export default function WaitlistPage() {
-  return (
-    <>
-      <SiteHeader />
-      <main className="waitlist-shell">
-        <section className="waitlist-intro">
-          <p className="eyebrow">NO RESERVATION? NO PROBLEM.</p>
-          <h1>GET IN<br />THE <span>QUEUE.</span></h1>
-          <p>
-            Join from the door. When your table is ready, you get five minutes to say
-            yes before we offer it to the next hungry person.
-          </p>
-          <div className="five-stamp"><strong>5</strong><span>MINUTES<br />TO REPLY</span></div>
-        </section>
-        <WaitlistForm />
-      </main>
-    </>
-  );
+  if (!WAITLIST_ENABLED) notFound();
+  return <><SiteHeader /><WaitlistGuest /></>;
 }

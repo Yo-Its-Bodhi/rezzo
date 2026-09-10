@@ -1,10 +1,4 @@
 export const RESTAURANT_TIMEZONE = "America/Toronto";
-export const RESERVATION_STORAGE_KEY = "la-chingada-reservations";
-export const WAITLIST_STORAGE_KEY = "la-chingada-waitlist";
-export const OPERATIONS_STORAGE_KEY = "la-chingada-operations";
-export const FLOOR_LAYOUT_STORAGE_KEY = "la-chingada-floor-layout";
-const FLOOR_LAYOUT_VERSION_KEY = "la-chingada-floor-layout-version";
-const FLOOR_LAYOUT_VERSION = "2";
 
 export type FloorName = "front" | "back" | "patio";
 export type FloorTable = {
@@ -16,6 +10,16 @@ export type FloorTable = {
   shape: "round" | "square" | "long";
   floor: FloorName;
   reservable: boolean;
+};
+
+export type FloorFixture = {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  floor: FloorName;
 };
 
 export const DEFAULT_TABLES: FloorTable[] = [
@@ -56,14 +60,26 @@ export const DEFAULT_TABLES: FloorTable[] = [
 
 export const TABLES = DEFAULT_TABLES;
 
-export const SERVICE_SCHEDULE: Record<number, { opens: string; closes: string }> = {
-  0: { opens: "12:00", closes: "21:00" },
-  1: { opens: "16:00", closes: "22:00" },
-  2: { opens: "16:00", closes: "22:00" },
-  3: { opens: "16:00", closes: "22:00" },
-  4: { opens: "12:00", closes: "23:00" },
-  5: { opens: "12:00", closes: "23:00" },
-  6: { opens: "12:00", closes: "23:00" },
+export const DEFAULT_FIXTURES: FloorFixture[] = [
+  { id: "front-entry", label: "ENTRANCE", x: 45, y: 93, width: 22, height: 6, floor: "front" },
+  { id: "host-stand", label: "HOST STAND", x: 67, y: 81, width: 18, height: 9, floor: "front" },
+  { id: "back-bar", label: "BAR · WALK-INS", x: 55, y: 81, width: 62, height: 10, floor: "back" },
+  { id: "back-kitchen", label: "TO KITCHEN", x: 88, y: 50, width: 15, height: 8, floor: "back" },
+  { id: "patio-tree", label: "TREE", x: 76, y: 18, width: 14, height: 14, floor: "patio" },
+  { id: "patio-entry", label: "ENTRANCE", x: 50, y: 93, width: 22, height: 6, floor: "patio" },
+];
+
+export const SERVICE_SCHEDULE: Record<
+  number,
+  { firstReservation: string; lastReservation: string }
+> = {
+  0: { firstReservation: "12:00", lastReservation: "20:00" },
+  1: { firstReservation: "16:00", lastReservation: "21:00" },
+  2: { firstReservation: "16:00", lastReservation: "21:00" },
+  3: { firstReservation: "16:00", lastReservation: "21:00" },
+  4: { firstReservation: "12:00", lastReservation: "22:00" },
+  5: { firstReservation: "12:00", lastReservation: "22:00" },
+  6: { firstReservation: "12:00", lastReservation: "22:00" },
 };
 
 export type StoredReservation = {
@@ -76,12 +92,26 @@ export type StoredReservation = {
   startsAt: string;
   endsAt: string;
   tableId: string;
+  tableIds?: string[];
   status: "confirmed" | "arrived" | "seated" | "completed" | "cancelled" | "no_show";
-  source: "online" | "phone" | "staff" | "waitlist";
+  source: "online" | "phone" | "staff" | "walkin" | "waitlist";
   request?: string;
+  staffNote?: string;
+  vip?: boolean;
+  allergies?: string;
+  accessibility?: string;
+  occasion?: string;
+  overrideReason?: string;
+  archivedAt?: string;
+  guestAction?: "edited" | "cancelled";
+  guestActionAt?: string;
   policyVersion: number;
   policyAcceptedAt: string;
 };
+
+export function reservationTableIds(reservation: Pick<StoredReservation, "tableId" | "tableIds">) {
+  return [...new Set([...(reservation.tableIds ?? []), reservation.tableId].filter(Boolean))];
+}
 
 export type StoredWaitlistEntry = {
   id: string;
@@ -91,14 +121,29 @@ export type StoredWaitlistEntry = {
   partySize: number;
   notes?: string;
   joinedAt: string;
-  status: "waiting" | "offered" | "accepted" | "declined" | "expired";
+  status: import("./waitlist-types").WaitlistStatus;
+  credentialNonce?: string;
+  tokenHash?: string;
+  consentAt?: string;
+  upNextAt?: string;
+  requeuedAt?: string;
+  offerId?: string;
+  offerTableId?: string;
+  reservationId?: string;
+  arrivalDeadline?: string;
+  pushSubscription?: import("./waitlist-types").WaitlistPushSubscription;
+  pushEnabled?: boolean;
+  lastDelivery?: import("./waitlist-types").WaitlistDelivery;
   offerExpiresAt?: string;
 };
 
 export type StoredOperations = {
   onlineBookingPaused: boolean;
+  onlineBookingPausedForDate?: string;
   blockedTableIds: string[];
   tableHolds: TableHold[];
+  fixtures: FloorFixture[];
+  serviceNotes?: Record<string, string>;
 };
 
 export type TableHold = {
@@ -107,101 +152,20 @@ export type TableHold = {
   startsAt: string;
   endsAt: string;
   reason: string;
+  waitlistEntryId?: string;
+  expiresAt?: string;
 };
 
 export const RESERVATION_POLICIES = [
   "Maximum of 6 people per online booking. For larger parties, contact us directly.",
   "Parties of 6 are subject to one bill and an 18% auto-gratuity.",
   "The patio is first come, first sat and cannot be reserved.",
-  "We do not book multiple tables for the same reservation.",
+  "Multiple bookings mean separate tables. We cannot combine them into one large table or guarantee that they will be together.",
   "We seat parties when at least 50% of the reservation is present.",
   "Tables are reserved for two hours.",
   "Changes must be made at least 24 hours in advance.",
   "Reservations are held for 15 minutes before they may be released.",
 ];
 
-export function readStoredReservations(): StoredReservation[] {
-  if (typeof window === "undefined") return [];
-  const value = window.localStorage.getItem(RESERVATION_STORAGE_KEY);
-  if (!value) return [];
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? (parsed as StoredReservation[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function writeStoredReservations(reservations: StoredReservation[]) {
-  window.localStorage.setItem(RESERVATION_STORAGE_KEY, JSON.stringify(reservations));
-  window.dispatchEvent(new Event("rezzo:reservations"));
-}
-
-export function readStoredWaitlist(): StoredWaitlistEntry[] {
-  if (typeof window === "undefined") return [];
-  const value = window.localStorage.getItem(WAITLIST_STORAGE_KEY);
-  if (!value) return [];
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? (parsed as StoredWaitlistEntry[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function writeStoredWaitlist(entries: StoredWaitlistEntry[]) {
-  window.localStorage.setItem(WAITLIST_STORAGE_KEY, JSON.stringify(entries));
-  window.dispatchEvent(new Event("rezzo:waitlist"));
-}
-
-export function readStoredOperations(): StoredOperations {
-  if (typeof window === "undefined") {
-    return { onlineBookingPaused: false, blockedTableIds: [], tableHolds: [] };
-  }
-  const value = window.localStorage.getItem(OPERATIONS_STORAGE_KEY);
-  if (!value) return { onlineBookingPaused: false, blockedTableIds: [], tableHolds: [] };
-  try {
-    const parsed = JSON.parse(value) as Partial<StoredOperations>;
-    return {
-      onlineBookingPaused: parsed.onlineBookingPaused === true,
-      blockedTableIds: Array.isArray(parsed.blockedTableIds) ? parsed.blockedTableIds : [],
-      tableHolds: Array.isArray(parsed.tableHolds) ? parsed.tableHolds : [],
-    };
-  } catch {
-    return { onlineBookingPaused: false, blockedTableIds: [], tableHolds: [] };
-  }
-}
-
-export function writeStoredOperations(operations: StoredOperations) {
-  window.localStorage.setItem(OPERATIONS_STORAGE_KEY, JSON.stringify(operations));
-  window.dispatchEvent(new Event("rezzo:operations"));
-}
-
-export function readStoredFloorLayout(): FloorTable[] {
-  if (typeof window === "undefined") return DEFAULT_TABLES;
-  if (window.localStorage.getItem(FLOOR_LAYOUT_VERSION_KEY) !== FLOOR_LAYOUT_VERSION) {
-    window.localStorage.setItem(FLOOR_LAYOUT_VERSION_KEY, FLOOR_LAYOUT_VERSION);
-    window.localStorage.setItem(FLOOR_LAYOUT_STORAGE_KEY, JSON.stringify(DEFAULT_TABLES));
-    return DEFAULT_TABLES;
-  }
-  const value = window.localStorage.getItem(FLOOR_LAYOUT_STORAGE_KEY);
-  if (!value) return DEFAULT_TABLES;
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? (parsed as FloorTable[]) : DEFAULT_TABLES;
-  } catch {
-    return DEFAULT_TABLES;
-  }
-}
-
-export function writeStoredFloorLayout(tables: FloorTable[]) {
-  window.localStorage.setItem(FLOOR_LAYOUT_VERSION_KEY, FLOOR_LAYOUT_VERSION);
-  window.localStorage.setItem(FLOOR_LAYOUT_STORAGE_KEY, JSON.stringify(tables));
-  window.dispatchEvent(new Event("rezzo:floor-layout"));
-}
-
-export function resetStoredFloorLayout() {
-  window.localStorage.removeItem(FLOOR_LAYOUT_STORAGE_KEY);
-  window.localStorage.removeItem(FLOOR_LAYOUT_VERSION_KEY);
-  window.dispatchEvent(new Event("rezzo:floor-layout"));
-}
+export const RESERVATION_POLICY_NOTE =
+  "We love celebrating with you and will always do our best to accommodate your needs. Because La Chingada is a small restaurant with a limited number of tables, we may not be the right fit for every large gathering—and it is never personal. Happy hour and prime-time availability may also be limited when demand is high. These policies help us provide the fairest and best possible experience for every guest. Thank you for understanding.";

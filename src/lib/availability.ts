@@ -9,6 +9,7 @@ export type DiningTable = {
 };
 
 export type Occupancy = {
+  reservationId?: string;
   tableId: string;
   startsAt: Date;
   endsAt: Date;
@@ -47,6 +48,12 @@ export type AvailabilityInput = {
 const overlaps = (startA: Date, endA: Date, startB: Date, endB: Date) =>
   startA < endB && endA > startB;
 
+const countsTowardStartLimit = (status: Occupancy["status"]) =>
+  status !== "cancelled" && status !== "no_show";
+
+const occupiesTable = (status: Occupancy["status"]) =>
+  status !== "cancelled" && status !== "no_show" && status !== "completed";
+
 export function getEligibleTables({
   startsAt,
   partySize,
@@ -58,11 +65,14 @@ export function getEligibleTables({
 }: AvailabilityInput): DiningTable[] {
   const endsAt = new Date(startsAt.getTime() + config.durationMinutes * 60_000);
   const hourKey = formatInTimeZone(startsAt, config.timezone, "yyyy-MM-dd-HH");
-  const startsThisHour = occupancies.filter(
+  const startsInHour = occupancies.filter(
     (item) =>
-      item.status !== "cancelled" &&
+      countsTowardStartLimit(item.status) &&
       formatInTimeZone(item.startsAt, config.timezone, "yyyy-MM-dd-HH") === hourKey,
-  ).length;
+  );
+  const startsThisHour =
+    new Set(startsInHour.flatMap((item) => item.reservationId ? [item.reservationId] : [])).size +
+    startsInHour.filter((item) => !item.reservationId).length;
 
   if (startsThisHour >= config.startsPerClockHour) return [];
 
@@ -85,7 +95,7 @@ export function getEligibleTables({
         !occupancies.some(
           (item) =>
             item.tableId === table.id &&
-            item.status !== "cancelled" &&
+            occupiesTable(item.status) &&
             overlaps(startsAt, endsAt, item.startsAt, item.endsAt),
         ),
     )

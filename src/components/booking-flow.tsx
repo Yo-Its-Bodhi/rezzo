@@ -1,19 +1,13 @@
 "use client";
 
-import { addDays, addHours, format } from "date-fns";
+import { addDays, format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { CalendarDays, Check, ChevronLeft, Clock3, Users } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
-import { assignBestTable, isTimeAvailable, type Occupancy } from "@/lib/availability";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
-  readStoredReservations,
-  readStoredOperations,
-  readStoredFloorLayout,
   RESERVATION_POLICIES,
   RESTAURANT_TIMEZONE,
-  SERVICE_SCHEDULE,
-  StoredReservation,
-  writeStoredReservations,
 } from "@/lib/restaurant";
 
 type Step = "search" | "details" | "confirmed";
@@ -22,22 +16,16 @@ function dateValue(date: Date) {
   return format(date, "yyyy-MM-dd");
 }
 
-function serviceSlots(date: string) {
-  const selectedDate = new Date(`${date}T12:00:00`);
-  const schedule = SERVICE_SCHEDULE[selectedDate.getDay()];
-  const [openHour, openMinute] = schedule.opens.split(":").map(Number);
-  const [closeHour, closeMinute] = schedule.closes.split(":").map(Number);
-  const opening = makeStart(date, openHour, openMinute);
-  const lastStart = makeStart(date, closeHour - 1, closeMinute);
-  const slots: Date[] = [];
-  for (let slot = opening; slot <= lastStart; slot = new Date(slot.getTime() + 15 * 60_000)) {
-    slots.push(slot);
-  }
-  return slots;
+function formatToronto(date: Date, pattern: string) {
+  return formatInTimeZone(date, RESTAURANT_TIMEZONE, pattern);
 }
 
-function makeStart(date: string, hour: number, minute: number) {
-  return new Date(`${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-04:00`);
+type Slot = { startsAt: string; label: string; available: boolean };
+type TimePeriod = "Earlier" | "Later";
+
+function slotPeriod(slot: Slot): TimePeriod {
+  const hour = Number(formatInTimeZone(new Date(slot.startsAt), RESTAURANT_TIMEZONE, "H"));
+  return hour < 18 ? "Earlier" : "Later";
 }
 
 export function BookingFlow() {
@@ -48,114 +36,90 @@ export function BookingFlow() {
   const [selectedStart, setSelectedStart] = useState<Date | null>(null);
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const [hydrated, setHydrated] = useState(false);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [period, setPeriod] = useState<TimePeriod>("Earlier");
+  const [loadingTimes, setLoadingTimes] = useState(true);
+  const [bookingError, setBookingError] = useState("");
+  const [paused, setPaused] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setHydrated(true), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    const controller = new AbortController();
+    fetch(`/api/availability?date=${encodeURIComponent(date)}&partySize=${partySize}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as { slots?: Slot[]; paused?: boolean; error?: string };
+        if (!response.ok || !payload.slots) throw new Error(payload.error ?? "Availability could not be loaded.");
+        setSlots(payload.slots);
+        setPaused(payload.paused === true);
+        const availablePeriods = [...new Set(payload.slots.map(slotPeriod))];
+        setPeriod((current) =>
+          availablePeriods.includes(current)
+            ? current
+            : availablePeriods[0] ?? "Earlier",
+        );
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setBookingError(error instanceof Error ? error.message : "Availability could not be loaded.");
+      })
+      .finally(() => setLoadingTimes(false));
+    return () => controller.abort();
+  }, [date, partySize]);
 
-  const existing = hydrated ? readStoredReservations() : [];
-  const reservableTables = (hydrated ? readStoredFloorLayout() : []).filter(
-    (table) => table.reservable,
+  const periods = useMemo(
+    () => [...new Set(slots.map(slotPeriod))],
+    [slots],
   );
-  const operations = hydrated
-    ? readStoredOperations()
-    : { onlineBookingPaused: false, blockedTableIds: [], tableHolds: [] };
-  const occupancies: Occupancy[] = existing.map((reservation) => ({
-    tableId: reservation.tableId,
-    startsAt: new Date(reservation.startsAt),
-    endsAt: new Date(reservation.endsAt),
-    status: reservation.status,
-  }));
-  const serviceStart = makeStart(date, 0, 0);
-  const serviceEnd = addHours(serviceStart, 24);
-  const blocks = [
-    ...operations.blockedTableIds.map((tableId) => ({
-      tableId,
-      startsAt: serviceStart,
-      endsAt: serviceEnd,
-    })),
-    ...operations.tableHolds.map((hold) => ({
-      tableId: hold.tableId,
-      startsAt: new Date(hold.startsAt),
-      endsAt: new Date(hold.endsAt),
-    })),
-  ];
+  const visibleSlots = slots.filter((slot) => slotPeriod(slot) === period);
 
-  const slots = serviceSlots(date).map((startsAt) => {
-    return {
-      startsAt,
-      label: format(startsAt, "h:mm a"),
-      available: !operations.onlineBookingPaused && isTimeAvailable({
-        startsAt,
-        partySize,
-        tables: reservableTables,
-        occupancies,
-        blocks,
-        config: {
-          durationMinutes: 120,
-          startsPerClockHour: 3,
-          timezone: RESTAURANT_TIMEZONE,
-        },
-      }),
-    };
-  });
-
-  function selectTime(startsAt: Date) {
-    setSelectedStart(startsAt);
+  function selectTime(startsAt: string) {
+    setSelectedStart(new Date(startsAt));
     setStep("details");
   }
 
-  function submitBooking(event: FormEvent<HTMLFormElement>) {
+  async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedStart || !policyAccepted) return;
+    setSubmitting(true);
+    setBookingError("");
     const form = new FormData(event.currentTarget);
-    const latest = readStoredReservations();
-    const latestOccupancies = latest.map((reservation) => ({
-      tableId: reservation.tableId,
-      startsAt: new Date(reservation.startsAt),
-      endsAt: new Date(reservation.endsAt),
-      status: reservation.status,
-    }));
-    const table = assignBestTable({
-      startsAt: selectedStart,
-      partySize,
-      tables: reservableTables,
-      occupancies: latestOccupancies,
-      blocks,
-      config: {
-        durationMinutes: 120,
-        startsPerClockHour: 3,
-        timezone: RESTAURANT_TIMEZONE,
-      },
+    const response = await fetch("/api/reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        guestName: form.get("name"),
+        phone: form.get("phone"),
+        email: form.get("email"),
+        request: form.get("request"),
+        partySize,
+        startsAt: selectedStart.toISOString(),
+        policyAccepted,
+      }),
     });
-    if (!table) {
-      setStep("search");
-      setSelectedStart(null);
+    const payload = (await response.json()) as {
+      error?: string;
+      reservation?: { confirmationCode: string };
+    };
+    setSubmitting(false);
+    if (!response.ok || !payload.reservation) {
+      setBookingError(payload.error ?? "The booking could not be completed.");
+      if (response.status === 409) {
+        setStep("search");
+        setSelectedStart(null);
+      }
       return;
     }
-
-    const code = `LC-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
-    const reservation: StoredReservation = {
-      id: crypto.randomUUID(),
-      confirmationCode: code,
-      guestName: String(form.get("name")),
-      email: String(form.get("email")),
-      phone: String(form.get("phone")),
-      request: String(form.get("request") ?? ""),
-      partySize,
-      startsAt: selectedStart.toISOString(),
-      endsAt: addHours(selectedStart, 2).toISOString(),
-      tableId: table.id,
-      status: "confirmed",
-      source: "online",
-      policyVersion: 1,
-      policyAcceptedAt: new Date().toISOString(),
-    };
-    writeStoredReservations([...latest, reservation]);
-    setConfirmation(code);
+    setConfirmation(payload.reservation.confirmationCode);
     setStep("confirmed");
+  }
+
+  function resetSearch() {
+    setStep("search");
+    setSelectedStart(null);
+    setPolicyAccepted(false);
+    setBookingError("");
   }
 
   if (step === "confirmed" && selectedStart) {
@@ -168,18 +132,18 @@ export function BookingFlow() {
         <h2>TABLE LOCKED.</h2>
         <p className="confirmation-code">{confirmation}</p>
         <div className="confirmation-details">
-          <span><CalendarDays size={18} /> {format(selectedStart, "EEEE, MMMM d")}</span>
-          <span><Clock3 size={18} /> {format(selectedStart, "h:mm a")}</span>
+          <span><CalendarDays size={18} /> {formatToronto(selectedStart, "EEEE, MMMM d")}</span>
+          <span><Clock3 size={18} /> {formatToronto(selectedStart, "h:mm a")}</span>
           <span><Users size={18} /> Party of {partySize}</span>
         </div>
         <p className="muted">
-          Save your confirmation code. SMS and email delivery can be enabled when the
-          Twilio and Resend production credentials are connected.
+          Save this confirmation code. Use Manage Your Table to change or cancel until
+          24 hours before your reservation. Inside 24 hours, call (416) 535-2242.
         </p>
-        <Link className="text-link" href={`/manage?code=${confirmation}`}>
-          VIEW OR CANCEL THIS BOOKING →
+        <Link className="button button-pink confirmation-manage-button" href={`/manage?code=${confirmation}`}>
+          MANAGE YOUR TABLE →
         </Link>
-        <button className="button button-dark" onClick={() => setStep("search")}>
+        <button className="button button-dark" onClick={resetSearch}>
           MAKE ANOTHER BOOKING
         </button>
       </section>
@@ -189,13 +153,13 @@ export function BookingFlow() {
   if (step === "details" && selectedStart) {
     return (
       <section className="booking-card">
-        <button className="back-button" onClick={() => setStep("search")}>
+        <button className="back-button" onClick={resetSearch}>
           <ChevronLeft size={18} /> Change time
         </button>
         <p className="step-label">02 / YOUR DETAILS</p>
         <h2>WHO ARE WE FEEDING?</h2>
         <div className="booking-summary">
-          <strong>{format(selectedStart, "EEE, MMM d · h:mm a")}</strong>
+          <strong>{formatToronto(selectedStart, "EEE, MMM d · h:mm a")}</strong>
           <span>Party of {partySize} · Table held for 2 hours</span>
         </div>
         <form onSubmit={submitBooking}>
@@ -231,8 +195,9 @@ export function BookingFlow() {
             />
             <span>I have read and agree to the reservation policies.</span>
           </label>
-          <button className="button button-pink" disabled={!policyAccepted}>
-            CONFIRM THE TABLE →
+          {bookingError && <p className="form-error" role="alert">{bookingError}</p>}
+          <button className="button button-pink" disabled={!policyAccepted || submitting}>
+            {submitting ? "LOCKING IT IN..." : "CONFIRM THE TABLE →"}
           </button>
         </form>
       </section>
@@ -250,7 +215,11 @@ export function BookingFlow() {
             <button
               className={partySize === size ? "choice active" : "choice"}
               key={size}
-              onClick={() => setPartySize(size)}
+              onClick={() => {
+                setLoadingTimes(true);
+                setBookingError("");
+                setPartySize(size);
+              }}
               aria-pressed={partySize === size}
             >
               {size}
@@ -269,6 +238,8 @@ export function BookingFlow() {
           min={dateValue(new Date())}
           max={dateValue(addDays(new Date(), 60))}
           onChange={(event) => {
+            setLoadingTimes(true);
+            setBookingError("");
             setDate(event.target.value);
             setSelectedStart(null);
           }}
@@ -276,10 +247,23 @@ export function BookingFlow() {
       </label>
       <div className="selection-group">
         <span className="input-label"><Clock3 size={16} /> AVAILABLE TIMES</span>
-        <div className="time-grid">
-          {slots.map((slot) => (
+        <div className="period-tabs" aria-label="Time of day">
+          {periods.map((item) => (
             <button
-              key={slot.startsAt.toISOString()}
+              className={period === item ? "active" : ""}
+              key={item}
+              onClick={() => setPeriod(item)}
+              aria-pressed={period === item}
+            >
+              {item === "Earlier" ? "EARLIER · OPEN–5 PM" : "LATER · 6 PM–CLOSE"}
+            </button>
+          ))}
+        </div>
+        <div className="time-grid">
+          {loadingTimes && <p className="times-status">CHECKING THE BOOK...</p>}
+          {!loadingTimes && visibleSlots.map((slot) => (
+            <button
+              key={slot.startsAt}
               className="time-choice"
               disabled={!slot.available}
               onClick={() => selectTime(slot.startsAt)}
@@ -288,14 +272,19 @@ export function BookingFlow() {
             </button>
           ))}
         </div>
+        {!loadingTimes && visibleSlots.every((slot) => !slot.available) && (
+          <p className="times-status">No tables in this window. Try another time of day.</p>
+        )}
       </div>
-      {operations.onlineBookingPaused && (
+      {bookingError && <p className="form-error" role="alert">{bookingError}</p>}
+      {paused && (
         <div className="alert-banner guest-alert">
-          ONLINE BOOKINGS ARE TEMPORARILY PAUSED. CALL US FOR HELP.
+          ONLINE BOOKINGS FOR TODAY ARE PAUSED. TOMORROW AND FUTURE DATES ARE STILL OPEN.
         </div>
       )}
       <div className="no-table-note">
-        NOTHING WORK? <Link href="/waitlist">JOIN TODAY&apos;S WAITLIST →</Link>
+        NOTHING AVAILABLE? CALL <a href="tel:+14165352242">(416) 535-2242</a> AND WE&apos;LL SEE
+        WHAT WE CAN DO. FOR SAME-DAY RESERVATIONS OR CHANGES, PLEASE CALL—DO NOT EMAIL.
       </div>
     </section>
   );

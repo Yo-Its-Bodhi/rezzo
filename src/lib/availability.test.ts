@@ -68,6 +68,16 @@ describe("availability", () => {
     expect(isTimeAvailable(input({ startsAt: at(20), partySize: 6, occupancies }))).toBe(true);
   });
 
+  it("does not approve a four-top edit to six when every six-top is occupied", () => {
+    const occupancies = [
+      { tableId: "six-a", startsAt: at(17), endsAt: at(19), status: "confirmed" as const },
+      { tableId: "six-b", startsAt: at(17), endsAt: at(19), status: "confirmed" as const },
+    ];
+
+    expect(isTimeAvailable(input({ startsAt: at(17, 30), partySize: 4, occupancies }))).toBe(true);
+    expect(isTimeAvailable(input({ startsAt: at(17, 30), partySize: 6, occupancies }))).toBe(false);
+  });
+
   it("rejects a fourth start in the same clock hour", () => {
     const occupancies = ["two", "four", "six-a"].map((tableId, index) => ({
       tableId,
@@ -78,6 +88,54 @@ describe("availability", () => {
 
     expect(isTimeAvailable(input({ startsAt: at(17, 45), occupancies }))).toBe(false);
     expect(isTimeAvailable(input({ startsAt: at(19), occupancies }))).toBe(true);
+  });
+
+  it("counts a multi-table reservation as one hourly start", () => {
+    const occupancies = [
+      {
+        reservationId: "large-party",
+        tableId: "four",
+        startsAt: at(17),
+        endsAt: at(19),
+        status: "confirmed" as const,
+      },
+      {
+        reservationId: "large-party",
+        tableId: "six-a",
+        startsAt: at(17),
+        endsAt: at(19),
+        status: "confirmed" as const,
+      },
+    ];
+
+    expect(isTimeAvailable(input({ startsAt: at(17, 30), occupancies }))).toBe(true);
+  });
+
+  it("releases tables after completion while retaining the hourly start count", () => {
+    const occupancies = [
+      { tableId: "two", startsAt: at(17), endsAt: at(19), status: "completed" as const },
+      { tableId: "four", startsAt: at(17, 10), endsAt: at(19, 10), status: "completed" as const },
+      { tableId: "six-a", startsAt: at(17, 20), endsAt: at(19, 20), status: "completed" as const },
+    ];
+
+    expect(
+      getEligibleTables(input({ startsAt: at(18), occupancies, config: { ...config, startsPerClockHour: 4 } }))
+        .map((table) => table.id),
+    ).toContain("two");
+    expect(isTimeAvailable(input({ startsAt: at(17, 45), occupancies }))).toBe(false);
+  });
+
+  it("does not let no-shows block tables or the hourly start limit", () => {
+    const occupancies = ["two", "four", "six-a"].map((tableId, index) => ({
+      tableId,
+      startsAt: at(17, index * 10),
+      endsAt: at(19, index * 10),
+      status: "no_show" as const,
+    }));
+
+    expect(isTimeAvailable(input({ startsAt: at(17, 45), occupancies }))).toBe(true);
+    expect(getEligibleTables(input({ startsAt: at(18), occupancies })).map((table) => table.id))
+      .toContain("two");
   });
 
   it("honours staff table blocks", () => {

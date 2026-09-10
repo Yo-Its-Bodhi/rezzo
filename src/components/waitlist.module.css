@@ -1,0 +1,78 @@
+.guestShell { display: grid; grid-template-columns: 1fr minmax(360px, 520px); gap: 48px; max-width: 1200px; margin: auto; padding: 64px 32px; }
+.guestIntro { align-self: center; }
+.kicker { font-size: 10px; font-weight: 900; letter-spacing: .13em; }
+.guestIntro h1 { font-family: Impact, "Arial Narrow", sans-serif; font-size: clamp(56px, 6.5vw, 88px); line-height: .95; margin: 24px 0; }
+.guestIntro h1 em { color: var(--pink); font-style: normal; }
+.guestIntro > p:last-of-type { max-width: 400px; font-size: 17px; line-height: 1.6; }
+.promise { align-items: center; background: var(--yellow); border: 2px solid var(--ink); display: flex; gap: 14px; margin-top: 28px; padding: 16px; max-width: 340px; font-size: 12px; }
+.guestCard { background: var(--white); border: 2px solid var(--ink); box-shadow: 7px 7px 0 var(--pink); padding: 28px; min-width: 0; }
+.guestCard h2 { font-family: Impact, "Arial Narrow", sans-serif; font-size: 42px; line-height: 1; margin: 16px 0; }
+.guestCard label { display: block; font-size: 10px; font-weight: 900; margin: 16px 0; }
+.guestCard input, .guestCard textarea, .guestCard select { font-size: 16px; }
+.formGrid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; }
+.formGrid label { min-width: 0; margin: 0; }
+.guestCard .consent { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; font-weight: 600; line-height: 1.5; }
+.consent input { flex: 0 0 auto; width: 22px; height: 22px; margin: 0; accent-color: var(--pink); }
+.finePrint { font-size: 12px; color: #5c5448; line-height: 1.5; }
+.error { background: #ffe0d8; border-left: 4px solid var(--red); padding: 12px; font-size: 13px; font-weight: 750; }
+.notice { background: #fff0b3; padding: 12px; border-left: 4px solid var(--ink); font-size: 13px; line-height: 1.5; }
+.position { display: flex; flex-direction: column; align-items: center; border-block: 1px solid #c4b9a5; padding: 22px 0; margin: 20px 0; }
+.position strong { color: var(--pink); font-family: Impact, sans-serif; font-size: 96px; line-height: 1; }
+.position span { font-size: 14px; font-weight: 750; margin-top: 10px; }
+.notificationCard { align-items: start; display: grid; grid-template-columns: 24px 1fr; gap: 10px; background: #f1e8d4; padding: 16px; margin: 20px 0; }
+.notificationCard strong { font-size: 11px; }
+.notificationCard p { font-size: 12px; margin: 5px 0; }
+.notificationCard > button, .notificationCard > p { grid-column: 1 / -1; }
+.leaveButton { background: none; border: 0; text-decoration: underline; min-height: 44px; font-size: 11px; font-weight: 850; cursor: pointer; }
+.rules { border-top: 1px solid #c4b9a5; padding-top: 16px; margin-top: 20px; font-size: 12px; line-height: 1.5; }
+.rules summary { font-weight: 850; cursor: pointer; min-height: 32px; }
+.rules li + li { margin-top: 8px; }
+.offer { background: var(--yellow); padding: 20px; margin: 16px -12px; text-align: center; border: 2px solid var(--ink); }
+.countdown { font-family: var(--font-geist-mono), monospace; font-size: 64px; font-weight: 900; line-height: 1.2; }
+.responseButtons { display: grid; gap: 10px; margin-top: 18px; }
+.acceptedMark { display: grid; place-items: center; background: var(--yellow); border: 2px solid var(--ink); border-radius: 50%; width: 72px; height: 72px; margin-top: 20px; }
+.code { font-family: monospace; font-size: 22px; font-weight: 900; }
+.textLink { font-size: 11px; font-weight: 900; display: inline-flex; align-items: center; min-height: 44px; }
+
+.staffHeader { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.staffHeader h2 { font-size: 32px; margin: 0; }
+.staffHeader p { font-size: 12px; margin: 4px 0; }
+.staffLinks { display: flex; flex-wrap: wrap; gap: 8px; }
+.staffLinks a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; background: var(--ink); color: var(--paper); padding: 8px 12px; font-size: 10px; font-weight: 900; text-decoration: none; }
+.queueGroup { margin-top: 18px; }
+.queueGroup h3 { font-size: 11px; letter-spacing: .09em; margin: 0; padding: 10px 0; border-bottom: 2px solid var(--ink); }
+.queueRow { display: grid; grid-template-columns: 42px minmax(130px, 1fr) minmax(240px, 1.25fr); gap: 12px; padding: 14px 0; border-bottom: 1px solid #c4b9a5; align-items: start; }
+.queueNumber { display: grid; place-items: center; background: #ede2ca; min-height: 40px; font-weight: 900; font-size: 15px; }
+.queueGuest { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.queueGuest > strong { font-size: 15px; }
+.queueGuest span, .queueGuest a { font-size: 12px; overflow-wrap: anywhere; }
+.queueGuest p { font-size: 12px; margin: 0; }
+.queueBadge { display: inline-block; color: #5b1440; font-size: 10px !important; font-weight: 900; text-transform: uppercase; }
+.queueActions { display: flex; flex-wrap: wrap; gap: 6px; }
+.queueActions button, .queueActions select { min-height: 44px; border: 1px solid var(--ink); padding: 8px 10px; font-size: 10px; font-weight: 850; cursor: pointer; margin: 0; }
+.queueActions select { flex: 1 1 100%; min-width: 0; width: 100%; font-size: 12px; background: var(--white); }
+.queueActions button { background: #eee2c8; flex: 1; }
+.queueActions .primary { background: var(--pink); color: white; }
+.queueActions .secondary { background: var(--yellow); }
+.queueActions .remove { flex: 0 0 auto; background: transparent; color: #9a201c; }
+.queueActions button:disabled { opacity: .45; cursor: not-allowed; }
+.queueTimer { display: block; font-family: monospace; font-size: 20px !important; font-weight: 900; color: #9a201c; }
+.history { margin-top: 20px; font-size: 12px; }
+.history summary { cursor: pointer; font-weight: 850; min-height: 44px; }
+.history .queueRow { grid-template-columns: minmax(140px, 1fr) auto; }
+.empty { color: #686052; padding: 18px 0; font-size: 13px; }
+
+@media (max-width: 900px) {
+  .guestShell { grid-template-columns: 1fr; max-width: 620px; gap: 22px; padding: 28px 20px 50px; }
+  .guestIntro h1 { font-size: 54px; margin: 12px 0; }
+  .guestIntro > p:last-of-type { font-size: 14px; }
+  .promise { display: none; }
+  .queueRow { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; }
+  .queueActions { grid-column: 2; }
+}
+@media (max-width: 480px) {
+  .guestShell { padding-inline: 12px; }
+  .guestCard { padding: 20px 16px; box-shadow: 4px 4px 0 var(--pink); }
+  .guestIntro h1 { font-size: 45px; }
+  .guestCard h2 { font-size: 36px; }
+}
