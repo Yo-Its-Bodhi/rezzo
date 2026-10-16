@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { DemoNotice } from "@/components/demo-notice";
+import { reservationMetadata } from "@/lib/page-metadata";
 import "./globals.css";
 import "./reservations.css";
 
@@ -30,12 +31,9 @@ const headingFont = localFont({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Reserve | La Chingada",
-  description:
-    "Save your seat for fresh Mexican street food at La Chingada, 1242 Dundas Street West, Toronto. Book a table for up to six guests.",
-  icons: { icon: "/brand/corn-mark.svg", apple: "/apple-touch-icon.png" },
-};
+export function generateMetadata(): Metadata {
+  return reservationMetadata(process.env);
+}
 
 export default function RootLayout({
   children,
