@@ -2,6 +2,7 @@ import "server-only";
 
 import { ECDH } from "node:crypto";
 import webpush from "web-push";
+import { demoModeEnabled } from "./demo-mode";
 import { z } from "zod";
 import type { StoredWaitlistEntry } from "./restaurant";
 import { waitlistCredential } from "./waitlist-engine";
@@ -93,6 +94,7 @@ function pushConfiguration() {
 }
 
 export function waitlistPushPublicKey() {
+  if (demoModeEnabled(process.env)) return null;
   return pushConfiguration()?.publicKey ?? null;
 }
 
@@ -112,6 +114,8 @@ export async function sendWaitlistPush(
   const failure = (error: string, invalidate = false) => ({
     delivery: { channel: "push" as const, sent: false, error }, invalidate,
   });
+
+  if (demoModeEnabled(process.env)) return failure("Notifications are disabled in this demo preview.");
 
   if (!entry.pushSubscription) {
     return twilioConfiguration()

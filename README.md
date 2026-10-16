@@ -12,6 +12,24 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Customer design preview
+
+The customer reservation and booking-management pages now share La Chingada's restaurant identity: corn mark, locally hosted Barlow Condensed and DM Sans, marigold/chile/teal colours and genuine restaurant photography. See [the design handoff](docs/DESIGN_HANDOFF.md) for validation and remaining limits.
+
+For a **local demo without a database connection or real bookings**, run in PowerShell:
+
+```powershell
+$env:REZZO_DEMO_MODE = 'true'
+$env:NEXT_TELEMETRY_DISABLED = '1'
+npm run dev -- --hostname 127.0.0.1 --port 7340
+```
+
+Open `http://127.0.0.1:7340/`. The server displays a demo notice. Use invented details only; demo reservations live in process memory and disappear when the process restarts. No real table is booked or customer email sent. A production build requires both `REZZO_DEMO_MODE=true` and `REZZO_DEMO_PREVIEW=true` to permit this same in-memory preview; the local demo flag alone cannot change normal production behaviour. No production database migrations are needed for this preview.
+
+For the production-built Docker staging package and preview links, see [the staging instructions](docs/STAGING_PREVIEW.md). Staging is a visual/sample-data review, with no live database or notification credentials.
+
+This source update has not been deployed to the live `rezzo.bodhix.io` service. Production continues to need its existing database, staff/session secrets and operational configuration; preserve them separately from source.
+
 ## App surfaces
 
 - `/` — guest reservation flow with table-aware availability and policy consent

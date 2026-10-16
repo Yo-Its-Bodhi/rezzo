@@ -35,6 +35,27 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("safe web push", () => {
+  it("sends neither push nor SMS in an explicitly enabled production demo preview", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("REZZO_DEMO_MODE", "true");
+    vi.stubEnv("REZZO_DEMO_PREVIEW", "true");
+    vi.stubEnv("TWILIO_ACCOUNT_SID", "AC-preview-test");
+    vi.stubEnv("TWILIO_AUTH_TOKEN", "preview-test-only");
+    vi.stubEnv("TWILIO_FROM_NUMBER", "+14165550100");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const entry = offeredEntry();
+      expect(waitlistPushPublicKey()).toBeNull();
+      expect((await sendWaitlistPush(entry, "offer")).delivery).toMatchObject({ sent: false, error: expect.stringContaining("demo preview") });
+      delete entry.pushSubscription;
+      expect((await sendWaitlistPush(entry, "up_next")).delivery.sent).toBe(false);
+      expect(send).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it.each([
     "http://fcm.googleapis.com/path", "https://127.0.0.1/path", "https://localhost/path",
     "https://fcm.googleapis.com.evil.example/path", "https://fcm.googleapis.com@evil.example/path",

@@ -2,6 +2,7 @@ import "server-only";
 
 import { addHours, addMinutes } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import { demoModeEnabled } from "./demo-mode";
 import {
   RESTAURANT_TIMEZONE,
   type StoredReservation,
@@ -19,7 +20,7 @@ declare global {
 }
 
 export function isDemoMode() {
-  return process.env.NODE_ENV !== "production" && process.env.REZZO_DEMO_MODE === "true";
+  return demoModeEnabled(process.env);
 }
 
 function reservation(
